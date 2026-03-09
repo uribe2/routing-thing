@@ -305,6 +305,7 @@ public class Router {
       packet.neighborID = rd.simulatedIPAddress;
       packet.srcProcessIP = rd.processIPAddress;
       packet.srcProcessPort = rd.processPortNumber;
+      packet.weight = weight;
 
       out.writeObject(packet);
       out.flush();
@@ -370,7 +371,7 @@ public class Router {
           remoteRouter.processPortNumber = request.packet.srcProcessPort;
           remoteRouter.status = null;
 
-          Link link = new Link(rd, remoteRouter, (short) 1);
+          Link link = new Link(rd, remoteRouter, request.packet.weight);
           ports[freePort] = link;
 
           SOSPFPacket acceptPacket = new SOSPFPacket();
@@ -561,6 +562,7 @@ public class Router {
       return;
     }
 
+    ports[portNumber].weight = newWeight;
     updateOwnLSA();
     broadcastAllLSAs();
   }

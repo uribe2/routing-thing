@@ -26,6 +26,9 @@ public class SOSPFPacket implements Serializable {
   // used by LSAUPDATE
   public Vector<LSA> lsaArray = null;
 
+  // used by HELLO attach request to carry the requested link weight
+  public short weight;
+
   // used by Application Message
   public String message; // user inputted message payload
 

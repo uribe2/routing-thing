@@ -20,89 +20,38 @@ public class LinkStateDatabase {
 
   /**
    * output the shortest path from this router to the destination with the given
-   * IP address
-   * using Dijkstra's algorithm with link weights (not hop count).
+   * IP address using Dijkstra's algorithm with link weights (not hop count).
    *
-   * format: source ip address -> ip address -> ... -> destination ip
+   * format: "Path found: IP (W) -> IP (W) -> ... -> IP"
    *
    * @param destinationIP the simulated IP address of the destination router
-   * @return the shortest path as a string, or null if no path exists
+   * @return the formatted path string, or "Path not found" if unreachable
    */
   String getShortestPath(String destinationIP) {
-    // Build the graph from LSA database
-    Map<String, Map<String, Integer>> graph = buildGraph();
+    WeightedGraph g = buildGraph();
+    int srcIdx = g.indexOf(rd.simulatedIPAddress);
+    int dstIdx = g.indexOf(destinationIP);
 
-    // Run Dijkstra's algorithm
-    Map<String, Integer> distances = new HashMap<>();
-    Map<String, String> previous = new HashMap<>();
-    PriorityQueue<NodeDistance> pq = new PriorityQueue<>();
-    Set<String> visited = new HashSet<>();
+    if (srcIdx == -1 || dstIdx == -1) return "Path not found";
 
-    String source = rd.simulatedIPAddress;
+    int[] prev = computePrev(g, srcIdx);
 
-    // Initialize distances
-    for (String node : graph.keySet()) {
-      distances.put(node, Integer.MAX_VALUE);
-    }
-    distances.put(source, 0);
-    pq.offer(new NodeDistance(source, 0));
+    if (prev[dstIdx] == -1 && dstIdx != srcIdx) return "Path not found";
 
-    // Dijkstra's algorithm
-    while (!pq.isEmpty()) {
-      NodeDistance current = pq.poll();
-      String currentNode = current.node;
-
-      if (visited.contains(currentNode)) {
-        continue;
-      }
-      visited.add(currentNode);
-
-      if (currentNode.equals(destinationIP)) {
-        break;
-      }
-
-      Map<String, Integer> neighbors = graph.get(currentNode);
-      if (neighbors == null) {
-        continue;
-      }
-
-      for (Map.Entry<String, Integer> neighbor : neighbors.entrySet()) {
-        String neighborNode = neighbor.getKey();
-        int weight = neighbor.getValue();
-
-        if (visited.contains(neighborNode)) {
-          continue;
-        }
-
-        int newDistance = distances.get(currentNode) + weight;
-        if (newDistance < distances.get(neighborNode)) {
-          distances.put(neighborNode, newDistance);
-          previous.put(neighborNode, currentNode);
-          pq.offer(new NodeDistance(neighborNode, newDistance));
-        }
-      }
+    // Reconstruct path as list of indices
+    List<Integer> path = new ArrayList<>();
+    for (int at = dstIdx; at != -1; at = prev[at]) {
+      path.add(0, at);
     }
 
-    // Reconstruct path
-    if (!distances.containsKey(destinationIP) || distances.get(destinationIP) == Integer.MAX_VALUE) {
-      return null; // No path exists
+    // Format as "Path found: IP (W) -> IP (W) -> ... -> IP"
+    StringBuilder sb = new StringBuilder("Path found: ");
+    for (int i = 0; i < path.size() - 1; i++) {
+      int u = path.get(i);
+      int v = path.get(i + 1);
+      sb.append(g.nodeIDs[u]).append(" (").append(g.edges[u][v]).append(") -> ");
     }
-
-    List<String> path = new ArrayList<>();
-    String current = destinationIP;
-    while (current != null) {
-      path.add(0, current);
-      current = previous.get(current);
-    }
-
-    // Format as string
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < path.size(); i++) {
-      sb.append(path.get(i));
-      if (i < path.size() - 1) {
-        sb.append(" -> ");
-      }
-    }
+    sb.append(g.nodeIDs[path.get(path.size() - 1)]);
 
     return sb.toString();
   }
@@ -115,99 +64,96 @@ public class LinkStateDatabase {
    * @return the IP address of the next hop, or null if no path exists
    */
   String getNextHop(String destinationIP) {
-    // Build the graph from LSA database
-    Map<String, Map<String, Integer>> graph = buildGraph();
+    WeightedGraph g = buildGraph();
+    int srcIdx = g.indexOf(rd.simulatedIPAddress);
+    int dstIdx = g.indexOf(destinationIP);
 
-    // Run Dijkstra's algorithm
-    Map<String, Integer> distances = new HashMap<>();
-    Map<String, String> previous = new HashMap<>();
-    PriorityQueue<NodeDistance> pq = new PriorityQueue<>();
-    Set<String> visited = new HashSet<>();
+    if (srcIdx == -1 || dstIdx == -1) return null;
 
-    String source = rd.simulatedIPAddress;
+    int[] prev = computePrev(g, srcIdx);
 
-    // Initialize distances
-    for (String node : graph.keySet()) {
-      distances.put(node, Integer.MAX_VALUE);
-    }
-    distances.put(source, 0);
-    pq.offer(new NodeDistance(source, 0));
+    if (prev[dstIdx] == -1 && dstIdx != srcIdx) return null;
 
-    // Dijkstra's algorithm
-    while (!pq.isEmpty()) {
-      NodeDistance current = pq.poll();
-      String currentNode = current.node;
-
-      if (visited.contains(currentNode)) {
-        continue;
-      }
-      visited.add(currentNode);
-
-      if (currentNode.equals(destinationIP)) {
-        break;
-      }
-
-      Map<String, Integer> neighbors = graph.get(currentNode);
-      if (neighbors == null) {
-        continue;
-      }
-
-      for (Map.Entry<String, Integer> neighbor : neighbors.entrySet()) {
-        String neighborNode = neighbor.getKey();
-        int weight = neighbor.getValue();
-
-        if (visited.contains(neighborNode)) {
-          continue;
-        }
-
-        int newDistance = distances.get(currentNode) + weight;
-        if (newDistance < distances.get(neighborNode)) {
-          distances.put(neighborNode, newDistance);
-          previous.put(neighborNode, currentNode);
-          pq.offer(new NodeDistance(neighborNode, newDistance));
-        }
-      }
+    // Backtrack from destination until we find the node whose prev is the source
+    int at = dstIdx;
+    while (prev[at] != srcIdx) {
+      at = prev[at];
+      if (at == -1) return null;
     }
 
-    // Find next hop by backtracking from destination
-    if (!distances.containsKey(destinationIP) || distances.get(destinationIP) == Integer.MAX_VALUE) {
-      return null; // No path exists
-    }
-
-    String current = destinationIP;
-    String nextHop = current;
-
-    while (current != null && !current.equals(source)) {
-      nextHop = current;
-      current = previous.get(current);
-    }
-
-    return nextHop;
+    return g.nodeIDs[at];
   }
 
   /**
-   * Build a weighted graph from the Link State Database.
-   * 
-   * @return a map where each node maps to its neighbors and their weights
+   * Run Dijkstra from srcIdx and return the prev[] array for path reconstruction.
+   * prev[i] = index of the node before i on the shortest path from srcIdx, or -1.
    */
-  private Map<String, Map<String, Integer>> buildGraph() {
-    Map<String, Map<String, Integer>> graph = new HashMap<>();
+  private int[] computePrev(WeightedGraph g, int srcIdx) {
+    int n = g.nodeIDs.length;
+    int[] dist = new int[n];
+    int[] prev = new int[n];
+    boolean[] visited = new boolean[n];
 
-    for (LSA lsa : _store.values()) {
-      String nodeID = lsa.linkStateID;
-      Map<String, Integer> neighbors = new HashMap<>();
+    Arrays.fill(dist, Integer.MAX_VALUE);
+    Arrays.fill(prev, -1);
+    dist[srcIdx] = 0;
 
-      for (LinkDescription ld : lsa.links) {
-        if (!ld.linkID.equals(nodeID)) {
-          // This is a link to a neighbor (not self-link)
-          neighbors.put(ld.linkID, ld.weight);
+    // int[] entries: [nodeIndex, distance]
+    PriorityQueue<int[]> pq = new PriorityQueue<>(Comparator.comparingInt(a -> a[1]));
+    pq.offer(new int[]{srcIdx, 0});
+
+    while (!pq.isEmpty()) {
+      int[] curr = pq.poll();
+      int u = curr[0];
+
+      if (visited[u]) continue;
+      visited[u] = true;
+
+      for (int v = 0; v < n; v++) {
+        if (g.edges[u][v] > 0 && !visited[v]) {
+          int newDist = dist[u] + g.edges[u][v];
+          if (newDist < dist[v]) {
+            dist[v] = newDist;
+            prev[v] = u;
+            pq.offer(new int[]{v, newDist});
+          }
         }
       }
-
-      graph.put(nodeID, neighbors);
     }
 
-    return graph;
+    return prev;
+  }
+
+  /**
+   * Build a WeightedGraph from the Link State Database.
+   * Each LSA router becomes a node; each linkDescription defines a directed edge.
+   */
+  private WeightedGraph buildGraph() {
+    // Collect all node IDs (preserves insertion order for stable indexing)
+    Set<String> nodeSet = new LinkedHashSet<>();
+    for (LSA lsa : _store.values()) {
+      nodeSet.add(lsa.linkStateID);
+      for (LinkDescription ld : lsa.links) {
+        nodeSet.add(ld.linkID);
+      }
+    }
+
+    String[] nodeIDs = nodeSet.toArray(new String[0]);
+    WeightedGraph g = new WeightedGraph(nodeIDs.length);
+    g.nodeIDs = nodeIDs;
+
+    // Fill edge matrix; skip self-links (weight 0 means no edge)
+    for (LSA lsa : _store.values()) {
+      int i = g.indexOf(lsa.linkStateID);
+      for (LinkDescription ld : lsa.links) {
+        if (!ld.linkID.equals(lsa.linkStateID)) {
+          int j = g.indexOf(ld.linkID);
+          g.edges[i][j] = (short) ld.weight;
+        }
+      }
+    }
+
+    return g;
   }
 
   // initialize the linkstate database by adding an entry about the router itself
@@ -234,23 +180,5 @@ public class LinkStateDatabase {
       sb.append("\n");
     }
     return sb.toString();
-  }
-
-  /**
-   * Helper class for Dijkstra's algorithm priority queue
-   */
-  private static class NodeDistance implements Comparable<NodeDistance> {
-    String node;
-    int distance;
-
-    NodeDistance(String node, int distance) {
-      this.node = node;
-      this.distance = distance;
-    }
-
-    @Override
-    public int compareTo(NodeDistance other) {
-      return Integer.compare(this.distance, other.distance);
-    }
   }
 }

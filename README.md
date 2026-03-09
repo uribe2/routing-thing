@@ -50,7 +50,7 @@ Terminal 2:
 
 ```
 
-attach 127.0.0.1 32001 1
+attach 127.0.0.1 32001 192.168.1.1 1
 
 ```
 
@@ -60,7 +60,7 @@ Terminal 2:
 
 ```
 
-attach 127.0.0.1 32003 1
+attach 127.0.0.1 32003 192.168.1.3 1
 
 ```
 
@@ -70,7 +70,7 @@ Terminal 3:
 
 ```
 
-attach 127.0.0.1 32004 1
+attach 127.0.0.1 32004 192.168.1.4 1
 
 ```
 
@@ -80,7 +80,7 @@ Terminal 4:
 
 ```
 
-attach 127.0.0.1 32001 1
+attach 127.0.0.1 32001 192.168.1.1 1
 
 ```
 
@@ -119,7 +119,7 @@ Expected output:
 
 ```
 
-attach [Process IP] [Process Port] [Weight]
+attach [Process IP] [Process Port] [Simulated IP] [Weight]
 
 ```
 

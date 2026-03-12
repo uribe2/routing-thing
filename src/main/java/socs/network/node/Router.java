@@ -1,16 +1,20 @@
 package socs.network.node;
 
-import socs.network.message.LSA;
-import socs.network.message.LinkDescription;
-import socs.network.message.SOSPFPacket;
-import socs.network.util.Configuration;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Vector;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import socs.network.message.LSA;
+import socs.network.message.LinkDescription;
+import socs.network.message.SOSPFPacket;
+import socs.network.util.Configuration;
 
 public class Router {
 
@@ -126,6 +130,8 @@ public class Router {
       } else if (packet.sospfType == 4) {
         // Application message
         handleApplicationMessage(packet);
+        out.writeObject("ACK");
+        out.flush();
       }
 
       socket.close();
@@ -207,13 +213,12 @@ public class Router {
       remoteRouter.status = RouterStatus.TWO_WAY;
       System.out.println("set " + packet.srcIP + " STATE to TWO_WAY;");
 
-      // Update server's own LSA to include this new neighbor; don't broadcast yet
+      // IMPORTANT: advertise the new adjacency
       updateOwnLSA();
+      broadcastAllLSAs();
 
     } else if (remoteRouter.status == RouterStatus.TWO_WAY) {
       // Already in TWO_WAY state
-      // The client expects a response to complete their handshake
-      // Send HELLO back but keep socket open for their second HELLO
       SOSPFPacket response = createHelloPacket(packet.srcIP);
       out.writeObject(response);
       out.flush();
@@ -255,7 +260,8 @@ public class Router {
     }
 
     if (updated) {
-      // Forward full current LSDB (including own updated LSA) so all neighbors converge
+      // Forward full current LSDB (including own updated LSA) so all neighbors
+      // converge
       Vector<LSA> toForward = new Vector<>();
       for (LSA lsa : lsd._store.values()) {
         toForward.add(copyLSA(lsa));
@@ -433,7 +439,10 @@ public class Router {
       System.out.println("Warning: Connection closed before response could be sent");
       System.out.println("The remote router may have timed out");
     } finally {
-      try { request.socket.close(); } catch (IOException ignored) {}
+      try {
+        request.socket.close();
+      } catch (IOException ignored) {
+      }
     }
   }
 
@@ -584,7 +593,8 @@ public class Router {
   private int countLinks() {
     int count = 0;
     for (Link link : ports) {
-      if (link != null) count++;
+      if (link != null)
+        count++;
     }
     return count;
   }
@@ -640,18 +650,18 @@ public class Router {
       System.out.println("Error: no direct link to next hop " + nextHopIP);
       return;
     }
-
     RouterDescription nextHop = getRemoteRouter(link);
-
     try {
       Socket socket = new Socket(nextHop.processIPAddress, nextHop.processPortNumber);
       ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
       out.flush();
+      ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
       out.writeObject(packet);
       out.flush();
+      in.readObject(); // wait for ACK before closing
       socket.close();
-    } catch (IOException e) {
-      System.err.println("Error forwarding message");
+    } catch (Exception e) {
+      System.err.println("Error forwarding message: " + e.getMessage());
     }
   }
 

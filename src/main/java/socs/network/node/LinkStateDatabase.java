@@ -126,34 +126,49 @@ public class LinkStateDatabase {
 
   /**
    * Build a WeightedGraph from the Link State Database.
-   * Each LSA router becomes a node; each linkDescription defines a directed edge.
+   * Each LSA router becomes a node; an edge A->B is only created when
+   * A's LSA lists B AND B's LSA lists A (bidirectional agreement).
+   * This prevents stale one-sided links from creating phantom paths.
    */
   private WeightedGraph buildGraph() {
     // Collect all node IDs (preserves insertion order for stable indexing)
     Set<String> nodeSet = new LinkedHashSet<>();
     for (LSA lsa : _store.values()) {
       nodeSet.add(lsa.linkStateID);
-      for (LinkDescription ld : lsa.links) {
-        nodeSet.add(ld.linkID);
-      }
     }
 
     String[] nodeIDs = nodeSet.toArray(new String[0]);
     WeightedGraph g = new WeightedGraph(nodeIDs.length);
     g.nodeIDs = nodeIDs;
 
-    // Fill edge matrix; skip self-links (weight 0 means no edge)
+    // Fill edge matrix; only add edge A->B if B's LSA also lists A
     for (LSA lsa : _store.values()) {
       int i = g.indexOf(lsa.linkStateID);
       for (LinkDescription ld : lsa.links) {
         if (!ld.linkID.equals(lsa.linkStateID)) {
-          int j = g.indexOf(ld.linkID);
-          g.edges[i][j] = (short) ld.weight;
+          // Check that the other side also has an LSA that links back
+          LSA remoteLSA = _store.get(ld.linkID);
+          if (remoteLSA != null && linksTo(remoteLSA, lsa.linkStateID)) {
+            int j = g.indexOf(ld.linkID);
+            g.edges[i][j] = (short) ld.weight;
+          }
         }
       }
     }
 
     return g;
+  }
+
+  /**
+   * Check if the given LSA has a link to the specified router.
+   */
+  private boolean linksTo(LSA lsa, String routerID) {
+    for (LinkDescription ld : lsa.links) {
+      if (ld.linkID.equals(routerID)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // initialize the linkstate database by adding an entry about the router itself

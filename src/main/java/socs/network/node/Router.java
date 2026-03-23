@@ -261,6 +261,17 @@ public class Router {
               }
             }
           }
+          // If the LSA has only a self-link (router is gone), remove it from the store
+          boolean onlySelfLink = true;
+          for (LinkDescription ld2 : receivedLSA.links) {
+            if (!ld2.linkID.equals(receivedLSA.linkStateID)) {
+              onlySelfLink = false;
+              break;
+            }
+          }
+          if (onlySelfLink) {
+            lsd._store.remove(receivedLSA.linkStateID);
+          }
         }
       }
     }

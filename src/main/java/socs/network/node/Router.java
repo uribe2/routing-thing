@@ -568,7 +568,7 @@ public class Router {
   }
 
   /**
-   * PATCHED: Added spec-matching output.
+   * Added spec-matching output.
    * connect = attach + start (HELLO handshake) + LSA broadcast, all in one step.
    * Can only be called after start has been run (we check by verifying the
    * network
@@ -607,7 +607,7 @@ public class Router {
   }
 
   /**
-   * PATCHED: Save disconnected neighbor info before nulling the port,
+   * Save disconnected neighbor info before nulling the port,
    * so we can send the LSAUPDATE to them too (they need to know we removed
    * them). Then broadcast to all remaining neighbors as well.
    */
@@ -637,7 +637,7 @@ public class Router {
   }
 
   /**
-   * PATCHED: Added spec-matching output.
+   * Added spec-matching output.
    */
   private void processUpdate(short portNumber, short newWeight) {
     if (portNumber < 0 || portNumber >= ports.length || ports[portNumber] == null) {
@@ -708,7 +708,7 @@ public class Router {
   }
 
   /**
-   * PATCHED: Save neighbor info before clearing ports so we can still
+   * Save neighbor info before clearing ports so we can still
    * send the final LSAUPDATE to them. The LSA with empty links tells
    * all neighbors this router is gone; they will remove their reverse link
    * via the patched handleLSAUpdate.
@@ -795,7 +795,7 @@ public class Router {
         // Show prompt
         System.out.print(">> ");
         String command = br.readLine();
-        // CRITICAL: Check if there's a pending attach request first
+        // Check if there's a pending attach request first
         if (!pendingAttachRequests.isEmpty() &&
             (command.equalsIgnoreCase("Y") || command.equalsIgnoreCase("N"))) {
           processPendingAttachRequest(command);

@@ -828,7 +828,7 @@ public class Router {
           if (cmdLine.length >= 3) {
             processSend(cmdLine[1], cmdLine[2]);
           }
-        } else if (command.startsWith("update ")) {
+        } else if (command.startsWith("updateWeight ")) {
           String[] cmdLine = command.split(" ");
           if (cmdLine.length >= 3) {
             processUpdate(Short.parseShort(cmdLine[1]), Short.parseShort(cmdLine[2]));

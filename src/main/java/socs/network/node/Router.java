@@ -238,7 +238,11 @@ public class Router {
         continue;
       }
       LSA existingLSA = lsd._store.get(receivedLSA.linkStateID);
-      if (existingLSA == null || receivedLSA.lsaSeqNumber > existingLSA.lsaSeqNumber) {
+      // Accept if: no existing entry, higher seq#, or the stored LSA is from a
+      // dead/quit router (only self-link). A restarting router has a fresh seq#
+      // that would be lower than the stale entry, so we must accept it.
+      if (existingLSA == null || receivedLSA.lsaSeqNumber > existingLSA.lsaSeqNumber
+          || isDeadLSA(existingLSA)) {
         lsd._store.put(receivedLSA.linkStateID, copyLSA(receivedLSA));
         updated = true;
         // Check if this neighbor removed us from its link list.
@@ -261,17 +265,6 @@ public class Router {
               }
             }
           }
-          // If the LSA has only a self-link (router is gone), remove it from the store
-          boolean onlySelfLink = true;
-          for (LinkDescription ld2 : receivedLSA.links) {
-            if (!ld2.linkID.equals(receivedLSA.linkStateID)) {
-              onlySelfLink = false;
-              break;
-            }
-          }
-          if (onlySelfLink) {
-            lsd._store.remove(receivedLSA.linkStateID);
-          }
         }
       }
     }
@@ -291,6 +284,18 @@ public class Router {
         forwardLSAUpdate(toForward, packet.srcIP);
       }
     }
+  }
+
+  /**
+   * Check if an LSA represents a dead/quit router (only has a self-link).
+   */
+  private boolean isDeadLSA(LSA lsa) {
+    for (LinkDescription ld : lsa.links) {
+      if (!ld.linkID.equals(lsa.linkStateID)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private LSA copyLSA(LSA src) {
